@@ -9,7 +9,7 @@ STOWBASE := /usr/local/stow
 
 ## Mabe you care about these
 CC := gcc
-CXXFLAGS := -g -fPIC -I./include -Wall -Werror
+CXXFLAGS := -g -fPIC -I./include -Wall
 OCXXFLAGS := -O3 -funroll-loops -I./include
 
 
@@ -23,8 +23,16 @@ STOWPREFIX := $(STOWBASE)/$(STOWDIR)
 DISTPATH := $(HOME)/prism/tarballs
 DOXPATH := $(HOME)/prism/public_html/dox
 
+PLATFORM := $(shell uname -s)
 
-
+## OS X uses a different library extension, play nice
+ifeq ($(PLATFORM),Darwin)
+PRODUCT := $(PROJECT).dylib
+LDFLAGS := -dynamiclib
+else
+PRODUCT := $(PROJECT).so
+LDFLAGS := -Wl,-soname,$(PRODUCT)
+endif
 
 HEADERS := $(addprefix include/js/,js.h)
 
@@ -33,7 +41,7 @@ HEADERS := $(addprefix include/js/,js.h)
 .PHONY: doc default clean stow
 
 
-default: libjs.so
+default: $(PRODUCT)
 
 .c.o:
 	$(CC) $(CXXFLAGS) -c $<
@@ -41,11 +49,11 @@ default: libjs.so
 pid_test: pid_test.c
 	$(CC) $(CXXFLAGS) -o $@ $< -ljs
 
-libjs.so: js.o $(HEADERS)
-	$(CC) -shared -Wl,-soname,$@ -o $@ $<
+$(PRODUCT): js.o $(HEADERS)
+	$(CC) -shared $(LDFLAGS) -o $@ $<
 
 clean:
-	rm -fv *.o *.so pid_test
+	rm -fv *.o *.so *.dylib pid_test
 
 distclean: clean
 	rm -rf doc
@@ -60,16 +68,16 @@ dist: distclean
 	cd .. &&               \
 	tar --exclude=.svn --lzma -cvf $(DISTPATH)/$(PROJECT)-$(VERSION).tar.lzma $(PROJECT)
 
-stow: libjs.so
+stow: $(PRODUCT)
 	mkdir -p $(STOWPREFIX)/include/ssdmu
 	mkdir -p $(STOWPREFIX)/lib/
-	install --mode 755 libjs.so $(STOWPREFIX)/lib
-	install --mode 644 include/js/*.h $(STOWPREFIX)/include/js
+	install -m 755 $(PRODUCT) $(STOWPREFIX)/lib
+	install -m 644 include/js/*.h $(STOWPREFIX)/include/js
 	cd $(STOWBASE) && stow $(STOWDIR)
 
 
-install: libjs.so
+install: $(PRODUCT)
 	mkdir -p $(PREFIX)/include/js
 	mkdir -p $(PREFIX)/lib/
-	install --mode 755 libjs.so $(PREFIX)/lib
-	install --mode 644 include/js/*.h $(PREFIX)/include/js
+	install -m 755 $(PRODUCT) $(PREFIX)/lib
+	install -m 644 include/js/*.h $(PREFIX)/include/js
